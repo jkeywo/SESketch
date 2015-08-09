@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+    <head>
+		<title>Kiwi's SE Ship Sketcher</title>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+		<script src="FileSaver.js"></script>
+		<script src="Ship3D.js"></script>
+		<script src="Ship2D.js"></script>
+		<script>
+		function save() {
+
+			var myShip3D = new Ship3D("TestShip", 32, 32, 32, "Small");
+			myShip3D.Apply( new Ribbing( 2, 2, 1.25 ) );
+			myShip3D.Apply( new SphereFunctor( {x:0, y:0, z:0}, 8) );
+			myShip3D.DensityToBlock(0);
+			var output = myShip3D.ToBlueprint();
+
+			download("bp.sbc", output);
+		}
+
+		function download(filename, text) {
+			var blob = new Blob([text], {
+				type: "text/plain;",
+			});
+			saveAs(blob, filename);
+		}
+		</script>
+	</head>
+	<body>
+	<button type="button" onclick="save()">Generate</button>
+	<div id="output"></div>
+	</table>
+	</body>
+</html>
