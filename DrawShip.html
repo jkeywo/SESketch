@@ -55,8 +55,13 @@
 			var tool = $("[name='brush']:checked").val();
 			
 			if( tool == "draw" || tool == "clear" ) {
+				var scale = GetScale();
+				var brushSizeStr = $("[name='brushsize']").val();
+				var brushSize = parseInt( brushSizeStr );
 				var pos = getMousePos(this, e);
-				addPixel(pos.x, pos.y);
+				
+				addPixel(Math.floor(pos.x / scale), Math.floor(pos.y / scale), brushSize, true);
+				redraw();
 				paint = true;
 			} else {
 				fill = true;
@@ -64,8 +69,13 @@
 		  });
 		  $('#shipCanvas').mousemove(function(e){
 			if(paint){
-			  var pos = getMousePos(this, e);
-			  addPixel(pos.x, pos.y);
+				var scale = GetScale();
+				var brushSizeStr = $("[name='brushsize']").val();
+				var brushSize = parseInt( brushSizeStr );
+				var pos = getMousePos(this, e);
+				
+				addPixel(Math.floor(pos.x / scale), Math.floor(pos.y / scale), brushSize, true);
+				redraw();
 			}
 		  });
 		  $('#shipCanvas').mouseup(function(e){
@@ -75,9 +85,9 @@
 				var outputSizeX = Math.floor(canvasSizeX / scale);
 				var outputSizeY = Math.floor(canvasSizeY / scale);
 				var pos = getMousePos(this, e);
-				Flood(Math.floor(pos.x / scale), Math.floor(pos.y / scale), outputSizeX, outputSizeY)
-				fill = false;
+				Flood(Math.floor(pos.x / scale), Math.floor(pos.y / scale), outputSizeX, outputSizeY);
 				redraw();
+				fill = false;
 			}
 		  });
 		  $('#shipCanvas').mouseleave(function(e){
@@ -86,55 +96,79 @@
 		  });
 		});
 		function Flood(x, y, maxX, maxY) {
-			pixels[x][y] = true;
+			addPixel(x, y, 1);
 			if(x > 0 && !pixels[x-1][y]) Flood(x-1, y, maxX, maxY);
 			if(x < maxX - 2 && !pixels[x+1][y]) Flood(x+1, y, maxX, maxY);
 			if(y > 0 && !pixels[x][y-1]) Flood(x, y-1, maxX, maxY);
 			if(y < maxY - 2 && !pixels[x][y+1]) Flood(x, y+1, maxX, maxY);
-			
 		}
 		function getMousePos(canvas, evt) {
-				var rect = canvas.getBoundingClientRect();
-				return {
-				  x: evt.clientX - rect.left,
-				  y: evt.clientY - rect.top
+			var rect = canvas.getBoundingClientRect();
+			return {
+				x: evt.clientX - rect.left,
+				y: evt.clientY - rect.top
 				};
-			  }
+		}
 			  
-		function addPixel(x, y) {
+		function addPixel(x, y, brushSize) {
 			// translate x and y for scale
 			var scale = GetScale();
+			
+			var hMirror = $('#hMirror').is(':checked');
+			var vMirror = $('#vMirror').is(':checked');
+			
 			// place pixel
-			var targetValue = ($("[name='brush']:checked").val() === "draw") ? 1 : 0;
-			var brushSizeStr = $("[name='brushsize']").val();
-			var brushSize = parseInt( brushSizeStr );
-			var minX = Math.floor(x / scale) - Math.floor(brushSize / 2);
-			var minY = Math.floor(y / scale) - Math.floor(brushSize / 2);
+			var targetValue = ($("[name='brush']:checked").val() === "clear") ? 0 : 1;
+			
+			var scaleMaxX = Math.floor(canvasSizeX / scale);
+			var scaleMaxY = Math.floor(canvasSizeY / scale);
+			
+			var minX = x - Math.floor(brushSize / 2);
+			var minY = y - Math.floor(brushSize / 2);
 			for(var x = minX; x < minX + brushSize; x++)
 			{
 				for(var y = minY; y < minY + brushSize; y++)
 				{
 					pixels[x][y] = targetValue;
+					if(hMirror) {
+						pixels[scaleMaxX-x][y] = targetValue;
+					}					
+					if(vMirror) {
+						pixels[x][scaleMaxY-y] = targetValue;
+					}
+					if(hMirror && vMirror) {
+						pixels[scaleMaxX-x][scaleMaxY-y] = targetValue;
+					}
 				}
 			}
-			
-			redraw();
 		}
-		function redraw(){
-		  context.clearRect(0, 0, context.canvas.width, context.canvas.height); // Clears the canvas
-		  
-		  // get scale
-		  var scale = GetScale();
-		  
-		  context.fillStyle = "#000000";
-		  for (var x = 0; x < Math.floor(canvasSizeX / scale); x++) {
-			for (var y = 0; y < Math.floor(canvasSizeY / scale); y++) {
-			  if(pixels[x][y])
-			  {
-				context.fillRect(x * scale,y * scale,scale,scale);
-			  }
+		function redraw() {
+			context.clearRect(0, 0, context.canvas.width, context.canvas.height); // Clears the canvas
+			  
+			// get scale
+			var scale = GetScale();
+			
+			// get Mirrors
+			var hMirror = $('#hMirror').is(':checked');
+			var vMirror = $('#vMirror').is(':checked');
+			if (hMirror) {
+				context.fillStyle = "#888888";
+				context.fillRect((canvasSizeX+scale)/2,0,1,canvasSizeY);
 			}
-		  }
+			if (vMirror) {
+				context.fillStyle = "#888888";
+				context.fillRect(0,(canvasSizeY+scale)/2,canvasSizeX,1);
+			}
+		  
+			context.fillStyle = "#000000";
+			for (var x = 0; x < Math.floor(canvasSizeX / scale); x++) {
+				for (var y = 0; y < Math.floor(canvasSizeY / scale); y++) {
+					if(pixels[x][y])
+					{
+						context.fillRect(x * scale,y * scale,scale,scale);
+					}
+				}
+			}
 		}
 		function GetScale() {
 		  var scaleStr = $("[name='size']:checked").val();
@@ -162,6 +196,7 @@
 	             <input type="radio" name="style" value="organic">Organic 
 	             X Industrial (coming soon) 
 	             X Military (coming soon)</td></tr>
+	<tr><td><input type="checkbox" id="vMirror">V Mirror <input type="checkbox" id="hMirror">H Mirror</td></tr>
 	<tr><td><input type="radio" name="brush" value="draw" checked="checked">Pen 
 	        <input type="radio" name="brush" value="fill">Fill
 	        <input type="radio" name="brush" value="clear">Erase
