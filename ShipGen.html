@@ -1,155 +1,146 @@
 <!DOCTYPE html>
 <html>
-	<head>
+    <head>
 		<title>Kiwi's SE Ship Sketcher</title>
 		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+		<script src="FileSaver.js"></script>
+		<script src="Ship3D.js"></script>
+		<script src="Ship2D.js"></script>
 		<script>
-function save() {
-	var shipName = $("[name='shipname']").val();
-	var shipScale = $("[name='scale']:checked").val()
-	var scaleStr = (shipScale === "small" ? "Small" : "Large");
-	var data ="<?xml version=\"1.0\"?>\n" 
-			+ "<Definitions xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n"
-			+ "  <ShipBlueprints>\n"
-			+ "    <ShipBlueprint>\n"
-			+ "      <Id>\n"
-			+ "        <TypeId>MyObjectBuilder_ShipBlueprintDefinition</TypeId>\n"
-			+ "        <SubtypeId>" + shipName + "</SubtypeId>\n"
-			+ "      </Id>\n"
-			+ "      <DisplayName>shipgen</DisplayName>\n"
-			+ "      <CubeGrids>\n"
-			+ "         <CubeGrid>\n"
-			+ "          <EntityId>199500361957648316</EntityId>\n"
-			+ "          <PersistentFlags>CastShadows InScene</PersistentFlags>\n"
-			+ "          <PositionAndOrientation>\n"
-			+ "            <Position x=\"27.0\" y=\"6.0\" z=\"52.0\" />\n"
-			+ "            <Forward x=\"-0\" y=\"-0\" z=\"-1\" />\n"
-			+ "            <Up x=\"0\" y=\"1\" z=\"0\" />\n"
-			+ "          </PositionAndOrientation>\n"
-			+ "          <GridSizeEnum>" + scaleStr + "</GridSizeEnum>\n"
-			+ "          <CubeBlocks>\n";
-  var scale = GetScale();
-  var outputSizeX = Math.floor(canvasSizeX / scale);
-  var outputSizeY = Math.floor(canvasSizeY / scale);
-  for(var x = 0; x < outputSizeX; x++ ) {
-    for(var y = 0; y < outputSizeY; y++) {
-      if(pixels[x][y])
-	  {
-		data += "            <MyObjectBuilder_CubeBlock xsi:type=\"MyObjectBuilder_CubeBlock\">\n"
-              + "              <SubtypeName>" + scaleStr + "BlockArmorBlock</SubtypeName>\n"
-              + "              <Min x=\"0\" y=\"" + (y - Math.floor(outputSizeY / 2)) + "\" z=\"" + (x - Math.floor(outputSizeX / 2)) + "\" />\n"
-              + "              <ColorMaskHSV x=\"0\" y=\"-0.95\" z=\"0.4\" />\n"
-              + "            </MyObjectBuilder_CubeBlock>\n";
-	  }
-    }
-  }
-  data +=     "         </CubeBlocks>\n"
- 			+ "         <DisplayName>" + shipName + "</DisplayName>\n"
-			+ "          <DestructibleBlocks>true</DestructibleBlocks>\n"
-			+ "          <CreatePhysics>" + (shipScale === "station" ? "false" : "true") + "</CreatePhysics>\n"
-			+ "          <EnableSmallToLargeConnections>false</EnableSmallToLargeConnections>\n"
-			+ "        </CubeGrid>\n"
-			+ "      </CubeGrids>\n"
-			+ "      <WorkshopId>0</WorkshopId>\n"
-			+ "      <OwnerSteamId>0</OwnerSteamId>\n"
-			+ "      <Points>0</Points>\n"
-			+ "    </ShipBlueprint>\n"
-			+ "  </ShipBlueprints>\n"
-			+ "</Definitions>";
-	
-	
-	download("bp.sbc", data);
-}
-		
-function download(filename, text) {
-    var pom = document.createElement('a');
-    pom.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
-    pom.setAttribute('download', filename);
+		function save() {
+			var shipName = $("[name='shipname']").val();
+			var shipScale = $("[name='scale']:checked").val()
+			var shipStyle = $("[name='style']:checked").val()
+			var scale = GetScale();
+			var outputSizeX = Math.floor(canvasSizeX / scale);
+			var outputSizeY = Math.floor(canvasSizeY / scale);
+			
+			var truePixels = new Array(outputSizeX);
+			for(var x = 0; x < outputSizeX; x++) {
+				truePixels[x] = new Array(outputSizeY);
+				for(var y = 0; y < outputSizeY; y++) {
+					truePixels[x][y] = new Pixel(x, y);
+					truePixels[x][y].type = pixels[x][y] ? 1 : 0;
+				}
+			}
 
-    if (document.createEvent) {
-        var event = document.createEvent('MouseEvents');
-        event.initEvent('click', true, true);
-        pom.dispatchEvent(event);
-    }
-    else {
-        pom.click();
-    }
-}
+			var newShip2D = new Ship2D(shipName, outputSizeX, outputSizeY, shipScale, truePixels);
+			var newShip3D = newShip2D.ConvertTo3D( shipStyle );
+			var blueprint = newShip3D.ToBlueprint();
+			
+			download("bp.sbc", blueprint);
+		}
 
-var canvasSizeX = 1024;
-var canvasSizeY = 512;
-var paint = false;
-var pixels = new Array(canvasSizeX);
-for (var x = 0; x < canvasSizeX; x++) {
-	pixels[x] = new Array(canvasSizeY);
-	for (var y = 0; y < canvasSizeY; y++) {
-		pixels[x][y] = false;
-	}
-}
-
-var context;
-$(document).ready(function(){
-  context = document.getElementById('shipCanvas').getContext("2d");
-
-  $('#shipCanvas').mousedown(function(e){
-    var pos = getMousePos(this, e);
-    addPixel(pos.x, pos.y);
-    paint = true;
-  });
-  $('#shipCanvas').mousemove(function(e){
-    if(paint){
-	  var pos = getMousePos(this, e);
-      addPixel(pos.x, pos.y);
-	}
-  });
-  $('#shipCanvas').mouseup(function(e){
-    paint = false;
-  });
-  $('#shipCanvas').mouseleave(function(e){
-    paint = false;
-  });
-});
-
-function getMousePos(canvas, evt) {
-        var rect = canvas.getBoundingClientRect();
-        return {
-          x: evt.clientX - rect.left,
-          y: evt.clientY - rect.top
-        };
-      }
-	  
-function addPixel(x, y)
-{
-	// translate x and y for scale
-	var scale = GetScale();
-	// place pixel
-	pixels[Math.floor(x / scale)][Math.floor(y / scale)] = ($("[name='brush']:checked").val() === "draw");
-	
-	redraw();
-}
-
-function redraw(){
-  context.clearRect(0, 0, context.canvas.width, context.canvas.height); // Clears the canvas
-  
-  // get scale
-  var scale = GetScale();
-  
-  context.fillStyle = "#000000";
-  for (var x = 0; x < Math.floor(canvasSizeX / scale); x++) {
-	for (var y = 0; y < Math.floor(canvasSizeY / scale); y++) {
-	  if(pixels[x][y])
-	  {
-		context.fillRect(x * scale,y * scale,scale,scale);
-	  }
-	}
-  }
-}
-
-function GetScale() {
-  var scaleStr = $("[name='size']:checked").val();
-  var scale = parseInt(scaleStr);
-  return scale;
-}
+		function download(filename, text) {
+			var blob = new Blob([text], {
+				type: "text/plain;",
+			});
+			saveAs(blob, filename);
+		}
+		var canvasSizeX = 1024;
+		var canvasSizeY = 512;
+		var paint = false;
+		var fill = false;
+		var pixels = new Array(canvasSizeX);
+		for (var x = 0; x < canvasSizeX; x++) {
+			pixels[x] = new Array(canvasSizeY);
+			for (var y = 0; y < canvasSizeY; y++) {
+				pixels[x][y] = Pixel(x, y);
+			}
+		}
+		var context;
+		$(document).ready(function(){
+		  context = document.getElementById('shipCanvas').getContext("2d");
+		  $('#shipCanvas').mousedown(function(e){
+			var tool = $("[name='brush']:checked").val();
+			
+			if( tool == "draw" || tool == "clear" ) {
+				var pos = getMousePos(this, e);
+				addPixel(pos.x, pos.y);
+				paint = true;
+			} else {
+				fill = true;
+			}
+		  });
+		  $('#shipCanvas').mousemove(function(e){
+			if(paint){
+			  var pos = getMousePos(this, e);
+			  addPixel(pos.x, pos.y);
+			}
+		  });
+		  $('#shipCanvas').mouseup(function(e){
+			paint = false;
+			if(fill) {
+				var scale = GetScale();
+				var outputSizeX = Math.floor(canvasSizeX / scale);
+				var outputSizeY = Math.floor(canvasSizeY / scale);
+				var pos = getMousePos(this, e);
+				Flood(Math.floor(pos.x / scale), Math.floor(pos.y / scale), outputSizeX, outputSizeY)
+				fill = false;
+				redraw();
+			}
+		  });
+		  $('#shipCanvas').mouseleave(function(e){
+			paint = false;
+			fill = false;
+		  });
+		});
+		function Flood(x, y, maxX, maxY) {
+			pixels[x][y] = true;
+			if(x > 0 && !pixels[x-1][y]) Flood(x-1, y, maxX, maxY);
+			if(x < maxX - 2 && !pixels[x+1][y]) Flood(x+1, y, maxX, maxY);
+			if(y > 0 && !pixels[x][y-1]) Flood(x, y-1, maxX, maxY);
+			if(y < maxY - 2 && !pixels[x][y+1]) Flood(x, y+1, maxX, maxY);
+			
+		}
+		function getMousePos(canvas, evt) {
+				var rect = canvas.getBoundingClientRect();
+				return {
+				  x: evt.clientX - rect.left,
+				  y: evt.clientY - rect.top
+				};
+			  }
+			  
+		function addPixel(x, y) {
+			// translate x and y for scale
+			var scale = GetScale();
+			// place pixel
+			var targetValue = ($("[name='brush']:checked").val() === "draw") ? 1 : 0;
+			var brushSizeStr = $("[name='brushsize']").val();
+			var brushSize = parseInt( brushSizeStr );
+			var minX = Math.floor(x / scale) - Math.floor(brushSize / 2);
+			var minY = Math.floor(y / scale) - Math.floor(brushSize / 2);
+			for(var x = minX; x < minX + brushSize; x++)
+			{
+				for(var y = minY; y < minY + brushSize; y++)
+				{
+					pixels[x][y] = targetValue;
+				}
+			}
+			
+			redraw();
+		}
+		function redraw(){
+		  context.clearRect(0, 0, context.canvas.width, context.canvas.height); // Clears the canvas
+		  
+		  // get scale
+		  var scale = GetScale();
+		  
+		  context.fillStyle = "#000000";
+		  for (var x = 0; x < Math.floor(canvasSizeX / scale); x++) {
+			for (var y = 0; y < Math.floor(canvasSizeY / scale); y++) {
+			  if(pixels[x][y])
+			  {
+				context.fillRect(x * scale,y * scale,scale,scale);
+			  }
+			}
+		  }
+		}
+		function GetScale() {
+		  var scaleStr = $("[name='size']:checked").val();
+		  var scale = parseInt(scaleStr);
+		  return scale;
+		}
 		</script>
 	</head>
 	<body>
@@ -160,20 +151,23 @@ function GetScale() {
 	and put the file into it. Make sure it's named bp.sdc and then load it up in game as usual.<br>
 	You can create and modify blueprints while the game is running, just hit the 'Refresh Blueprints' button.</td></tr>
 	<tr><td>Ship Name:<input type="text" name="shipname"></td></tr>
-	<tr><td>Scale:<input type="radio" name="scale" value="small" checked="checked">Small Ship 
-	              <input type="radio" name="scale" value="large">Large Ship 
-	              <input type="radio" name="scale" value="station">Station</td></tr>
+	<tr><td>Scale:<input type="radio" name="scale" value="Small" checked="checked">Small Ship 
+	              <input type="radio" name="scale" value="Large">Large Ship 
+	              <input type="radio" name="scale" value="Station">Station</td></tr>
 	<tr><td>Size:<input type="radio" name="size" value="16" checked="checked">32x16 
 	             <input type="radio" name="size" value="8">64x32 
 	             <input type="radio" name="size" value="4">128x64 
 	             <input type="radio" name="size" value="2">256x128</td></tr>
+	<tr><td>Style:<input type="radio" name="style" value="flat" checked="checked">Flat 
+	             <input type="radio" name="style" value="organic">Organic 
+	             X Industrial (coming soon) 
+	             X Military (coming soon)</td></tr>
 	<tr><td><input type="radio" name="brush" value="draw" checked="checked">Pen 
-	        <input type="radio" name="brush" value="clear">Erase</td></tr>
+	        <input type="radio" name="brush" value="fill">Fill
+	        <input type="radio" name="brush" value="clear">Erase
+			<input type="text" name="brushsize" value="1">Brush Size</td></tr>
 	<tr><td><button type="button" onclick="redraw()">Refresh</button><button type="button" onclick="save()">Save</button></td></tr>
 	<tr><td><canvas id="shipCanvas" width="1024" height="512"></canvas></td></tr>
 	</table>
 	</body>
 </html>
-
-
-
